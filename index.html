@@ -197,7 +197,10 @@
   }
 
   .cloud {
-    animation: driftAcross linear forwards;
+    position: absolute;
+    pointer-events: none;
+    user-select: none;
+    animation: driftAcross linear infinite;
   }
 
   .rain {
@@ -219,8 +222,8 @@
   }
 
   @keyframes driftAcross {
-    from { left: -150px; }
-    to { left: calc(100% + 150px); }
+    from { transform: translateX(0); }
+    to { transform: translateX(calc(100vw + 300px)); }
   }
 
   @keyframes fallDown {
@@ -751,29 +754,39 @@
       }
     }
 
-    function createCloud() {
-      const el = document.createElement('div');
-      el.className = 'sprite cloud';
-      const top = 3 + Math.random() * 20;
-      const dur = 25 + Math.random() * 20;
-      const opacity = 0.12 + Math.random() * 0.15;
-      const size = 60 + Math.random() * 80;
-      el.style.cssText = `
-        top: ${top}%;
-        animation-duration: ${dur}s;
-      `;
-      // CSS pixel cloud: 3 overlapping circles
-      el.innerHTML = `
-        <svg width="${size}" height="${size * 0.5}" viewBox="0 0 120 60" style="opacity:${opacity}">
-          <ellipse cx="40" cy="40" rx="30" ry="18" fill="#8899aa"/>
-          <ellipse cx="65" cy="35" rx="25" ry="20" fill="#8899aa"/>
-          <ellipse cx="85" cy="40" rx="20" ry="15" fill="#8899aa"/>
-        </svg>`;
-      worldEl.appendChild(el);
-      el.addEventListener('animationend', () => el.remove());
+    function createCloud() {} // clouds are now persistent, not per-event
+
+    function initClouds() {
+      const configs = [
+        { top: 4,  dur: 45, w: 100, op: 0.10 },
+        { top: 8,  dur: 60, w: 140, op: 0.13 },
+        { top: 3,  dur: 55, w: 90,  op: 0.09 },
+        { top: 12, dur: 50, w: 120, op: 0.11 },
+        { top: 6,  dur: 65, w: 80,  op: 0.08 },
+        { top: 15, dur: 40, w: 110, op: 0.12 },
+        { top: 2,  dur: 70, w: 150, op: 0.14 },
+        { top: 10, dur: 48, w: 95,  op: 0.10 },
+        { top: 18, dur: 58, w: 130, op: 0.11 },
+        { top: 5,  dur: 52, w: 105, op: 0.09 },
+      ];
+      configs.forEach((c, i) => {
+        const el = document.createElement('div');
+        el.className = 'cloud';
+        el.style.top = c.top + '%';
+        el.style.animationDuration = c.dur + 's';
+        el.style.animationDelay = (-i * c.dur / configs.length) + 's';
+        const h = c.w * 0.5;
+        el.innerHTML = `
+          <svg width="${c.w}" height="${h}" viewBox="0 0 120 60" style="opacity:${c.op}">
+            <ellipse cx="40" cy="40" rx="30" ry="18" fill="#8899aa"/>
+            <ellipse cx="65" cy="35" rx="25" ry="20" fill="#8899aa"/>
+            <ellipse cx="85" cy="40" rx="20" ry="15" fill="#8899aa"/>
+          </svg>`;
+        worldEl.appendChild(el);
+      });
     }
 
-    const WORLD_EVENTS = [createPlane, createDuck, createCloud, createRain, createLeaves];
+    const WORLD_EVENTS = [createPlane, createDuck, createRain, createLeaves];
 
     function scheduleWorld() {
       const delay = WORLD_MIN + Math.random() * (WORLD_MAX - WORLD_MIN);
@@ -1062,6 +1075,7 @@
     resetBreath();
     checkWelcomeBack();
     scheduleWorld();
+    initClouds();
   </script>
 </body>
 </html>
