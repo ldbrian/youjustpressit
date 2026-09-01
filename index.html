@@ -200,6 +200,14 @@
     animation: driftAcross linear forwards;
   }
 
+  .rain {
+    animation: fallDown 5s linear forwards;
+  }
+
+  .leaf {
+    animation: blowAcross 10s linear forwards;
+  }
+
   @keyframes flyAcross {
     from { left: -130px; }
     to { left: calc(100% + 130px); }
@@ -213,6 +221,16 @@
   @keyframes driftAcross {
     from { left: -150px; }
     to { left: calc(100% + 150px); }
+  }
+
+  @keyframes fallDown {
+    from { top: -8%; opacity: 1; }
+    to { top: 108%; opacity: 0.3; }
+  }
+
+  @keyframes blowAcross {
+    from { left: -30px; transform: rotate(0deg); }
+    to { left: calc(100% + 30px); transform: rotate(720deg); }
   }
 
   @keyframes shake {
@@ -691,8 +709,47 @@
       });
     }
 
-    function createRain() {} // removed — too small to see
-    function createLeaves() {} // removed — too small to see
+    function createRain() {
+      for (let i = 0; i < 8; i++) {
+        const el = document.createElement('div');
+        el.className = 'sprite rain';
+        el.style.cssText = `
+          width: 3px;
+          height: 40px;
+          background: linear-gradient(to bottom, transparent, #6688aa);
+          opacity: 0.5;
+          left: ${10 + Math.random() * 80}%;
+          top: -8%;
+          border-radius: 2px;
+          animation-delay: ${i * 0.3}s;
+        `;
+        worldEl.appendChild(el);
+        el.addEventListener('animationend', () => el.remove());
+      }
+      store.rains++;
+      saveStore(store);
+    }
+
+    function createLeaves() {
+      for (let i = 0; i < 5; i++) {
+        const el = document.createElement('div');
+        el.className = 'sprite leaf';
+        const size = 14 + Math.random() * 8;
+        const hue = 30 + Math.random() * 20;
+        el.style.cssText = `
+          width: ${size}px;
+          height: ${size * 0.6}px;
+          background: hsl(${hue}, 60%, 45%);
+          opacity: 0.6;
+          left: -${size}px;
+          top: ${10 + Math.random() * 40}%;
+          border-radius: 2px;
+          animation-delay: ${i * 0.5}s;
+        `;
+        worldEl.appendChild(el);
+        el.addEventListener('animationend', () => el.remove());
+      }
+    }
 
     function createCloud() {
       const el = document.createElement('div');
@@ -716,7 +773,7 @@
       el.addEventListener('animationend', () => el.remove());
     }
 
-    const WORLD_EVENTS = [createPlane, createDuck, createCloud, createCloud];
+    const WORLD_EVENTS = [createPlane, createDuck, createCloud, createRain, createLeaves];
 
     function scheduleWorld() {
       const delay = WORLD_MIN + Math.random() * (WORLD_MAX - WORLD_MIN);
