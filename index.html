@@ -28,6 +28,23 @@
     background: #1a1d26;
   }
 
+  body.gentle-true {
+    background: #0d0d0d;
+  }
+
+  body.gentle-true #line {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 14px;
+    letter-spacing: 1px;
+    line-height: 1.8;
+    max-width: 70%;
+    color: #6b7280;
+    text-shadow: none;
+    font-family: monospace;
+  }
+
   #stage {
     position: relative;
     width: 100%;
@@ -59,7 +76,7 @@
   }
 
   #btn-wrap.dodging {
-    transition: left 0.3s ease-out, top 0.3s ease-out;
+    transition: transform 0.3s ease-out;
   }
 
   #hint {
@@ -221,26 +238,33 @@
   }
 
   @media (max-width: 600px) {
+    #btn-wrap {
+      top: 38%;
+    }
     #btn-wrap img {
-      width: 180px;
-      height: 230px;
+      width: 140px;
+      height: 180px;
+    }
+    #title {
+      font-size: 16px;
+      top: 4%;
     }
     #line {
       font-size: 16px;
       letter-spacing: 2px;
-      top: 8%;
+      top: 6%;
     }
     #stats {
       font-size: 10px;
-      bottom: 24%;
+      bottom: 55%;
     }
     #feedback {
       font-size: 11px;
-      bottom: 18%;
+      bottom: 50%;
     }
     #toast {
       font-size: 12px;
-      bottom: 30%;
+      bottom: 62%;
     }
     #hint {
       font-size: 11px;
@@ -248,11 +272,27 @@
       right: 12px;
     }
   }
+
+  #title {
+    position: absolute;
+    top: 2%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #d1d5db;
+    font-size: 22px;
+    font-family: monospace;
+    font-weight: bold;
+    letter-spacing: 6px;
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+  }
 </style>
 </head>
 <body>
   <div id="stage">
     <div id="world"></div>
+    <div id="title">这里有个按钮</div>
     <div id="btn-wrap">
       <img id="btn-up" src="assets/btn_up.png" alt="按">
       <img id="btn-down" src="assets/btn_down.png" alt="按">
@@ -271,12 +311,22 @@
     const MIN_GAP = 10000;
     const SPEAK_DURATION = 3000;
     const DODGE_CHANCE = 0.008;
-    const selfClicks = { count: 0 };
+    const REAL_COUNTDOWN_CHANCE = 0.005;
+    const TRUE_GENTLE_THRESHOLD = 600000; // 10分钟
+    const TRUE_GENTLE_CHANCE = 0.001; // 0.1%
+
+    function fmtTime(ms) {
+      const totalSec = Math.floor(ms / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return `${m} 分 ${s} 秒`;
+    }
 
     const LINES = {
       absurd: [
         '继续按。',
         { countdown: true },
+        () => `你已按了 ${store.clicks} 下，耗时 ${fmtTime(store.totalPressMs)}，期间有 ${store.planes || 0} 架飞机飞过，下过 ${store.rains || 0} 次雨`,
         '你知道吗，按按钮这件事本身就很荒诞。',
         '这可能是你今天做过的最没意义的事。',
         '恭喜，你又浪费了几秒钟。',
@@ -293,6 +343,7 @@
       ],
       gentle: [
         { text: '即使你什么也不做，什么也没发生，你的人生依然有意义。', gentle: true },
+        { text: '如果你看到了这行字：这个页面里其实从来没有一只猫。一直都是你在陪自己。', gentle: true, rare: true },
       ],
     };
 
@@ -316,6 +367,7 @@
       lastActiveTime: saved ? saved.lastActiveTime : Date.now(),
       planes: saved ? (saved.planes || 0) : 0,
       rains: saved ? (saved.rains || 0) : 0,
+      selfClicks: saved ? (saved.selfClicks || 0) : 0,
     };
     saveStore(store);
 
@@ -410,7 +462,7 @@
     function layer() {
       const totalSec = store.totalPressMs / 1000;
       const gentleChance = Math.min(0.003 + totalSec * 0.00002, 0.015);
-      const ironicChance = Math.min(0.10, store.clicks * 0.0008);
+      const ironicChance = Math.min(0.25, store.clicks * 0.002);
       const r = Math.random();
       if (r < gentleChance) return 'gentle';
       if (r < gentleChance + ironicChance) return 'irony';
@@ -419,7 +471,21 @@
 
     function pickLine(type) {
       const pool = LINES[type];
-      return pool[Math.floor(Math.random() * pool.length)];
+      const line = pool[Math.floor(Math.random() * pool.length)];
+      // 真正温柔：累计按压>10分钟且0.1%概率触发
+      if (type === 'gentle' && line.rare && store.totalPressMs > TRUE_GENTLE_THRESHOLD && Math.random() < TRUE_GENTLE_CHANCE) {
+        return line;
+      }
+      // 如果抽中了 rare 但不满足条件，重新从非 rare 中选
+      if (line.rare) {
+        const normalPool = pool.filter(l => !l.rare);
+        return normalPool[Math.floor(Math.random() * normalPool.length)];
+      }
+      // 支持函数类型的台词（如统计彩蛋）
+      if (typeof line === 'function') {
+        return line();
+      }
+      return line;
     }
 
     // === gentle effect ===
@@ -433,9 +499,47 @@
         hideLine();
         document.body.classList.remove('gentle');
         enableButton();
-        resumeWorld();
-        resetIdle();
+        resumeAfterGentle();
       }, 8000);
+    }
+
+    function resumeAfterGentle() {
+      resumeWorld();
+      // 不调用 resetIdle()，保持安静不自动播放音乐
+    }
+
+    // === 真正温柔（亮点 F）：页面彻底静止，只剩开发者备注式文字 ===
+    function runTrueGentle(text) {
+      disableButton();
+      stopWorld();
+      stopAmbient();
+      
+      // 隐藏所有 UI 元素
+      wrap.style.display = 'none';
+      statsEl.style.display = 'none';
+      feedbackEl.style.display = 'none';
+      hint.style.display = 'none';
+      toastEl.style.display = 'none';
+      sfxText.style.display = 'none';
+      worldEl.style.display = 'none';
+      
+      document.body.classList.add('gentle-true');
+      showLine(text);
+      
+      setTimeout(() => {
+        hideLine();
+        document.body.classList.remove('gentle-true');
+        // 恢复所有 UI
+        wrap.style.display = '';
+        statsEl.style.display = '';
+        feedbackEl.style.display = '';
+        hint.style.display = '';
+        toastEl.style.display = '';
+        sfxText.style.display = '';
+        worldEl.style.display = '';
+        enableButton();
+        resumeAfterGentle();
+      }, 10000);
     }
 
     // === DEBUG ===
@@ -448,27 +552,27 @@
       if (dodgeActive) return;
       dodgeActive = true;
       disableButton();
+      pressed = false; // 确保按下状态重置
+      showUp(); // 确保按钮显示弹起状态
 
       const wrapRect = wrap.getBoundingClientRect();
       const cx = wrapRect.left + wrapRect.width / 2;
       const cy = wrapRect.top + wrapRect.height / 2;
       const angle = Math.random() * Math.PI * 2;
       const dist = 80 + Math.random() * 60;
-      const newX = cx + Math.cos(angle) * dist;
-      const newY = cy + Math.sin(angle) * dist;
+      const offsetX = Math.cos(angle) * dist;
+      const offsetY = Math.sin(angle) * dist;
 
       wrap.classList.add('dodging');
-      wrap.style.left = newX + 'px';
-      wrap.style.top = newY + 'px';
-      wrap.style.transform = 'none';
+      // 使用 transform 而非 left/top，保持居中基准
+      wrap.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`;
 
       setTimeout(() => {
         showLine('这次换我决定。');
 
         setTimeout(() => {
           hideLine();
-          wrap.style.left = '50%';
-          wrap.style.top = '50%';
+          // 回到中心
           wrap.style.transform = 'translate(-50%, -50%)';
           showDown();
           playClick();
@@ -478,13 +582,14 @@
           sfxText.style.opacity = '1';
 
           store.clicks++;
-          selfClicks.count++;
+          store.selfClicks = (store.selfClicks || 0) + 1;
           saveStore(store);
 
           setTimeout(() => {
             showUp();
             sfxText.style.opacity = '0';
             wrap.classList.remove('dodging');
+            wrap.style.transform = 'translate(-50%, -50%)';
             dodgeActive = false;
             enableButton();
             updateStats();
@@ -499,7 +604,7 @@
     // === 呼吸 ===
     const MAX_IDLE = 45000;
     let breathTimer = null;
-    const WELCOME_THRESHOLD = 60000; // 1分钟以上算"回来"
+    const WELCOME_THRESHOLD = 300000; // 5分钟以上算"回来"
 
     const IDLE_LINES = [
       '你还在啊。',
@@ -570,18 +675,48 @@
       img.style.opacity = '0.6';
       el.appendChild(img);
       worldEl.appendChild(el);
-      el.addEventListener('animationend', () => el.remove());
+
+      // 鸭子吃醋/点头逻辑（亮点 C）
+      // 动画约 20s，在 12-18s 之间随机触发
+      const triggerTime = 12000 + Math.random() * 6000;
+      
+      const jealousyTimer = setTimeout(() => {
+        if (!btnDisabled && Math.random() < 0.1) { // 10% 概率吃醋
+          showLine('你对那只鸭子，比对我专心。');
+        }
+      }, triggerTime);
+
+      const nodTimer = setTimeout(() => {
+        if (!btnDisabled && Math.random() < 0.005) { // 0.5% 概率点头
+          img.style.transition = 'transform 0.3s ease-out';
+          img.style.transform = 'rotate(-15deg)';
+          setTimeout(() => {
+            img.style.transform = 'rotate(0deg)';
+          }, 500);
+        }
+      }, triggerTime + 500); // 稍后一点点头
+
+      el.addEventListener('animationend', () => {
+        clearTimeout(jealousyTimer);
+        clearTimeout(nodTimer);
+        el.remove();
+      });
     }
 
     function createRain() {
       for (let i = 0; i < 8; i++) {
         const el = document.createElement('div');
         el.className = 'sprite rain';
-        el.textContent = '💧';
-        el.style.left = (10 + Math.random() * 80) + '%';
-        el.style.fontSize = '14px';
-        el.style.opacity = '0.3';
-        el.style.animationDelay = (i * 0.3) + 's';
+        // 纯 CSS 像素雨滴：细线条
+        el.style.cssText = `
+          width: 1px;
+          height: 16px;
+          background: #556b7a;
+          opacity: 0.4;
+          left: ${10 + Math.random() * 80}%;
+          top: -8%;
+          animation-delay: ${i * 0.3}s;
+        `;
         worldEl.appendChild(el);
         el.addEventListener('animationend', () => el.remove());
       }
@@ -593,11 +728,19 @@
       for (let i = 0; i < 4; i++) {
         const el = document.createElement('div');
         el.className = 'sprite leaf';
-        el.textContent = '🍂';
-        el.style.top = (10 + Math.random() * 35) + '%';
-        el.style.fontSize = '16px';
-        el.style.opacity = '0.3';
-        el.style.animationDelay = (i * 0.5) + 's';
+        // 纯 CSS 像素落叶：小矩形旋转飘动
+        const size = 6 + Math.random() * 4;
+        const hue = 30 + Math.random() * 20; // 橙黄色系
+        el.style.cssText = `
+          width: ${size}px;
+          height: ${size * 0.7}px;
+          background: hsl(${hue}, 60%, 45%);
+          opacity: 0.5;
+          left: -${size}px;
+          top: ${10 + Math.random() * 35}%;
+          border-radius: 1px;
+          animation-delay: ${i * 0.5}s;
+        `;
         worldEl.appendChild(el);
         el.addEventListener('animationend', () => el.remove());
       }
@@ -659,9 +802,9 @@
 
     function runCountdown() {
       disableButton();
-      const fake = Math.random() > 0.005;
+      const isReal = Math.random() < REAL_COUNTDOWN_CHANCE;
 
-      if (fake) {
+      if (!isReal) {
         const variant = Math.floor(Math.random() * 4);
 
         if (variant === 0) {
@@ -721,24 +864,8 @@
         }
 
       } else {
-        showLine('3');
-        setTimeout(() => showLine('2'), 1000);
-        setTimeout(() => showLine('1'), 2000);
-        setTimeout(() => {
-          showLine('0');
-          document.body.style.transition = 'background 0.5s';
-          document.body.style.background = '#000';
-          lineEl.style.color = 'transparent';
-          setTimeout(() => {
-            lineEl.style.color = '#e5e7eb';
-            showLine('可惜。');
-            document.body.style.background = '#31333E';
-            setTimeout(() => {
-              hideLine();
-              enableButton();
-            }, 2500);
-          }, 3000);
-        }, 3000);
+        // 真正的倒计时：复用 gentle 效果（全屏黑、停世界、显示"可惜"、8秒恢复）
+        runGentle('可惜。');
       }
     }
 
@@ -749,6 +876,8 @@
       const line = pickLine(type);
       if (line && line.countdown) {
         runCountdown();
+      } else if (line && line.gentle && line.rare) {
+        runTrueGentle(line.text);
       } else if (line && line.gentle) {
         runGentle(line.text);
       } else {
@@ -778,6 +907,8 @@
     }
 
     function showFeedback() {
+      // 前 5 次必显示，之后 10% 概率
+      if (store.clicks > 5 && Math.random() > 0.1) return;
       feedbackEl.textContent = '什么也没发生';
       feedbackEl.style.opacity = '1';
       clearTimeout(feedbackTimer);
@@ -789,8 +920,8 @@
       const m = Math.floor(totalSec / 60);
       const s = totalSec % 60;
       let text = `你已按了 ${store.clicks} 下，耗时 ${m} 分 ${s} 秒`;
-      if (selfClicks.count > 0) {
-        text += `，按钮自己按了 ${selfClicks.count} 下`;
+      if (store.selfClicks > 0) {
+        text += `，按钮自己按了 ${store.selfClicks} 下`;
       }
       statsEl.textContent = text;
       statsEl.style.opacity = '1';
@@ -808,6 +939,7 @@
     wrap.addEventListener('mousedown', (e) => {
       if (pressed || btnDisabled || dodgeActive) return;
       if (Math.random() < DODGE_CHANCE && store.clicks > 10) {
+        pressed = false;
         runDodge();
         return;
       }
@@ -846,6 +978,7 @@
       e.preventDefault();
       if (pressed || btnDisabled || dodgeActive) return;
       if (Math.random() < DODGE_CHANCE && store.clicks > 10) {
+        pressed = false; // 触发躲避前重置按下状态，防止死锁
         runDodge();
         return;
       }
@@ -866,6 +999,37 @@
 
     // === 角落提示 ===
     setTimeout(() => hint.classList.add('show'), 1500);
+
+    // === 清理函数 ===
+    function cleanup() {
+      clearTimeout(idleTimer);
+      clearTimeout(breathTimer);
+      clearTimeout(worldTimer);
+      clearTimeout(statsTimer);
+      clearTimeout(feedbackTimer);
+      clearTimeout(toastTimer);
+      stopAmbient();
+      stopWorld();
+    }
+
+    // === visibilitychange 处理 ===
+    let wasHidden = false;
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        wasHidden = true;
+        cleanup();
+      } else if (wasHidden) {
+        wasHidden = false;
+        // 页面重新可见时恢复
+        if (!btnDisabled) {
+          resetBreath();
+          scheduleWorld();
+          resetIdle();
+        }
+      }
+    });
+
+    window.addEventListener('beforeunload', cleanup);
 
     // === 启动 ===
     resetBreath();
