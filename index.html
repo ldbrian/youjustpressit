@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>你就按吧</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #31333E;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: monospace;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    transition: background 2s;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body.gentle {
+    background: #1a1d26;
+  }
+
+  #stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  #btn-wrap {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  #btn-wrap img {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: 272px;
+    height: 348px;
+  }
+
+  #btn-wrap #btn-down { display: none; }
+
+  #btn-wrap.disabled {
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  #btn-wrap.dodging {
+    transition: left 0.3s ease-out, top 0.3s ease-out;
+  }
+
+  #hint {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    color: #555b6e;
+    font-size: 13px;
+    letter-spacing: 2px;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 2s;
+  }
+
+  #hint.show { opacity: 1; }
+
+  #sfx-text {
+    position: absolute;
+    color: #a0aec0;
+    font-size: 10px;
+    font-family: monospace;
+    letter-spacing: 2px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    transform: scale(3);
+    transform-origin: top left;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  #line {
+    position: absolute;
+    top: 12%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #e5e7eb;
+    font-size: 22px;
+    font-family: monospace;
+    letter-spacing: 4px;
+    text-align: center;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 0.6s;
+    max-width: 80%;
+    line-height: 1.6;
+    text-shadow: 0 0 8px rgba(229,231,235,0.3);
+  }
+
+  #stats {
+    position: absolute;
+    bottom: 28%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #6b7280;
+    font-size: 12px;
+    font-family: monospace;
+    letter-spacing: 1px;
+    text-align: center;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 1.5s;
+    white-space: nowrap;
+  }
+
+  #feedback {
+    position: absolute;
+    bottom: 22%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #4b5563;
+    font-size: 13px;
+    font-family: monospace;
+    letter-spacing: 2px;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+  }
+
+  #toast {
+    position: absolute;
+    bottom: 36%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #9ca3af;
+    font-size: 14px;
+    font-family: monospace;
+    letter-spacing: 2px;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 1s;
+    white-space: nowrap;
+  }
+
+  #world {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .sprite {
+    position: absolute;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .plane {
+    top: 8%;
+    animation: flyAcross 14s linear forwards;
+  }
+
+  .duck {
+    bottom: 8%;
+    animation: walkAcross 20s linear forwards;
+  }
+
+  .rain {
+    animation: fallDown 5s linear forwards;
+  }
+
+  .leaf {
+    animation: blowAcross 10s linear forwards;
+  }
+
+  @keyframes flyAcross {
+    from { left: -80px; }
+    to { left: calc(100% + 80px); }
+  }
+
+  @keyframes walkAcross {
+    from { right: -100px; left: auto; }
+    to { right: calc(100% + 100px); left: auto; }
+  }
+
+  @keyframes fallDown {
+    from { top: -8%; opacity: 1; }
+    to { top: 108%; opacity: 0.3; }
+  }
+
+  @keyframes blowAcross {
+    from { left: -40px; transform: rotate(0deg); }
+    to { left: calc(100% + 40px); transform: rotate(720deg); }
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translate(-50%, -50%); }
+    25% { transform: translate(-50%, -50%) translateX(-4px); }
+    75% { transform: translate(-50%, -50%) translateX(4px); }
+  }
+
+  .shake {
+    animation: shake 0.15s infinite;
+  }
+
+  @media (max-width: 600px) {
+    #btn-wrap img {
+      width: 180px;
+      height: 230px;
+    }
+    #line {
+      font-size: 16px;
+      letter-spacing: 2px;
+      top: 8%;
+    }
+    #stats {
+      font-size: 10px;
+      bottom: 24%;
+    }
+    #feedback {
+      font-size: 11px;
+      bottom: 18%;
+    }
+    #toast {
+      font-size: 12px;
+      bottom: 30%;
+    }
+    #hint {
+      font-size: 11px;
+      bottom: 12px;
+      right: 12px;
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="world"></div>
+    <div id="btn-wrap">
+      <img id="btn-up" src="assets/btn_up.png" alt="按">
+      <img id="btn-down" src="assets/btn_down.png" alt="按">
+    </div>
+    <div id="hint">有时间的话，按一下。</div>
+    <div id="line"></div>
+    <div id="toast"></div>
+    <div id="feedback"></div>
+    <div id="stats"></div>
+    <div id="sfx-text"></div>
+  </div>
+
+  <script>
+    // === CONFIG ===
+    const STORAGE_KEY = 'youjustpressit';
+    const MIN_GAP = 10000;
+    const SPEAK_DURATION = 3000;
+    const DODGE_CHANCE = 0.008;
+    const selfClicks = { count: 0 };
+
+    const LINES = {
+      absurd: [
+        '继续按。',
+        { countdown: true },
+        '你知道吗，按按钮这件事本身就很荒诞。',
+        '这可能是你今天做过的最没意义的事。',
+        '恭喜，你又浪费了几秒钟。',
+        '你刚才按了，对吧？我看到了。',
+        '你以为会发生什么？',
+        '你按得越久，我就越像你。',
+      ],
+      irony: [
+        '你在期待什么？',
+        '你想干什么？',
+        '你其实只是在等点什么吧。',
+        '你按下这个按钮的时候在想什么？',
+        '你是不是觉得会发生什么？',
+      ],
+      gentle: [
+        { text: '即使你什么也不做，什么也没发生，你的人生依然有意义。', gentle: true },
+      ],
+    };
+
+    // === store ===
+    function loadStore() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    }
+
+    function saveStore(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    const saved = loadStore();
+    const store = {
+      clicks: saved ? saved.clicks : 0,
+      totalPressMs: saved ? saved.totalPressMs : 0,
+      firstOpenTime: saved ? saved.firstOpenTime : Date.now(),
+      lastActiveTime: saved ? saved.lastActiveTime : Date.now(),
+      planes: saved ? (saved.planes || 0) : 0,
+      rains: saved ? (saved.rains || 0) : 0,
+    };
+    saveStore(store);
+
+    // === audio ===
+    let audioCtx = null;
+    function getAudioCtx() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      return audioCtx;
+    }
+
+    function playClick() {
+      const ctx = getAudioCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.05);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.08);
+    }
+
+    function playDrop() {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.2);
+    }
+
+    // === ambient music ===
+    let ambientNodes = null;
+    let ambientFading = false;
+
+    function startAmbient() {
+      if (ambientNodes) return;
+      const ctx = getAudioCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 3);
+      gain.connect(ctx.destination);
+
+      const notes = [220, 261.63, 293.66, 329.63];
+      const oscillators = notes.map((freq, i) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        const noteGain = ctx.createGain();
+        noteGain.gain.setValueAtTime(0, ctx.currentTime);
+        noteGain.gain.linearRampToValueAtTime(0.03, ctx.currentTime + 2 + i * 0.8);
+        osc.connect(noteGain).connect(gain);
+        osc.start(ctx.currentTime + i * 0.5);
+        return osc;
+      });
+
+      ambientNodes = { gain, oscillators };
+    }
+
+    function stopAmbient() {
+      if (!ambientNodes) return;
+      const ctx = getAudioCtx();
+      const { gain, oscillators } = ambientNodes;
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1);
+      setTimeout(() => {
+        oscillators.forEach(o => { try { o.stop(); } catch(e) {} });
+      }, 1200);
+      ambientNodes = null;
+    }
+
+    let idleTimer = null;
+    const IDLE_DELAY = 5000;
+
+    function resetIdle() {
+      clearTimeout(idleTimer);
+      stopAmbient();
+      idleTimer = setTimeout(() => {
+        if (!btnDisabled) startAmbient();
+      }, IDLE_DELAY);
+    }
+
+    // === layer ===
+    function layer() {
+      const totalSec = store.totalPressMs / 1000;
+      const gentleChance = Math.min(0.003 + totalSec * 0.00002, 0.015);
+      const ironicChance = Math.min(0.10, store.clicks * 0.0008);
+      const r = Math.random();
+      if (r < gentleChance) return 'gentle';
+      if (r < gentleChance + ironicChance) return 'irony';
+      return 'absurd';
+    }
+
+    function pickLine(type) {
+      const pool = LINES[type];
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    // === gentle effect ===
+    function runGentle(text) {
+      disableButton();
+      stopWorld();
+      stopAmbient();
+      document.body.classList.add('gentle');
+      showLine(text);
+      setTimeout(() => {
+        hideLine();
+        document.body.classList.remove('gentle');
+        enableButton();
+        resumeWorld();
+        resetIdle();
+      }, 8000);
+    }
+
+    // === DEBUG ===
+    window.DEBUG_FORCE = null;
+
+    // === 一次不给你按 ===
+    let dodgeActive = false;
+
+    function runDodge() {
+      if (dodgeActive) return;
+      dodgeActive = true;
+      disableButton();
+
+      const wrapRect = wrap.getBoundingClientRect();
+      const cx = wrapRect.left + wrapRect.width / 2;
+      const cy = wrapRect.top + wrapRect.height / 2;
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 80 + Math.random() * 60;
+      const newX = cx + Math.cos(angle) * dist;
+      const newY = cy + Math.sin(angle) * dist;
+
+      wrap.classList.add('dodging');
+      wrap.style.left = newX + 'px';
+      wrap.style.top = newY + 'px';
+      wrap.style.transform = 'none';
+
+      setTimeout(() => {
+        showLine('这次换我决定。');
+
+        setTimeout(() => {
+          hideLine();
+          wrap.style.left = '50%';
+          wrap.style.top = '50%';
+          wrap.style.transform = 'translate(-50%, -50%)';
+          showDown();
+          playClick();
+          sfxText.textContent = '咔哒';
+          sfxText.style.left = `calc(50% + ${130 + Math.random() * 80}px)`;
+          sfxText.style.top = `calc(50% + ${-180 + Math.random() * 60}px)`;
+          sfxText.style.opacity = '1';
+
+          store.clicks++;
+          selfClicks.count++;
+          saveStore(store);
+
+          setTimeout(() => {
+            showUp();
+            sfxText.style.opacity = '0';
+            wrap.classList.remove('dodging');
+            dodgeActive = false;
+            enableButton();
+            updateStats();
+            feedbackEl.textContent = '按钮自己按了 1 下';
+            feedbackEl.style.opacity = '1';
+            setTimeout(() => { feedbackEl.style.opacity = '0'; }, 2000);
+          }, 400);
+        }, 2500);
+      }, 350);
+    }
+
+    // === 呼吸 ===
+    const MAX_IDLE = 45000;
+    let breathTimer = null;
+    const WELCOME_THRESHOLD = 60000; // 1分钟以上算"回来"
+
+    const IDLE_LINES = [
+      '你还在啊。',
+      '……',
+      '你是不是忘了什么？',
+      '我还在等你按呢。',
+      '你可以继续按，也可以不按。',
+    ];
+
+    function resetBreath() {
+      clearTimeout(breathTimer);
+      breathTimer = setTimeout(() => {
+        if (!btnDisabled) {
+          const text = IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)];
+          showToast(text);
+        }
+        resetBreath();
+      }, MAX_IDLE);
+    }
+
+    function checkWelcomeBack() {
+      const now = Date.now();
+      const gap = now - store.lastActiveTime;
+      if (gap > WELCOME_THRESHOLD && store.clicks > 0) {
+        setTimeout(() => {
+          showToast('你回来了。');
+        }, 800);
+      }
+    }
+
+    function updateLastActive() {
+      store.lastActiveTime = Date.now();
+      saveStore(store);
+    }
+
+    // === 背景世界 ===
+    const worldEl = document.getElementById('world');
+    const WORLD_MIN = 20000;
+    const WORLD_MAX = 60000;
+    let worldTimer = null;
+
+    function createPlane() {
+      const el = document.createElement('div');
+      el.className = 'sprite plane';
+      const img = document.createElement('img');
+      img.src = 'assets/plane.png';
+      img.style.display = 'block';
+      img.style.imageRendering = 'pixelated';
+      img.style.width = '115px';
+      img.style.height = '77px';
+      img.style.opacity = '0.4';
+      el.appendChild(img);
+      worldEl.appendChild(el);
+      el.addEventListener('animationend', () => el.remove());
+      store.planes++;
+      saveStore(store);
+    }
+
+    function createDuck() {
+      const el = document.createElement('div');
+      el.className = 'sprite duck';
+      const img = document.createElement('img');
+      img.src = 'assets/duck.png';
+      img.style.display = 'block';
+      img.style.imageRendering = 'pixelated';
+      img.style.width = '81px';
+      img.style.height = '71px';
+      img.style.opacity = '0.6';
+      el.appendChild(img);
+      worldEl.appendChild(el);
+      el.addEventListener('animationend', () => el.remove());
+    }
+
+    function createRain() {
+      for (let i = 0; i < 8; i++) {
+        const el = document.createElement('div');
+        el.className = 'sprite rain';
+        el.textContent = '💧';
+        el.style.left = (10 + Math.random() * 80) + '%';
+        el.style.fontSize = '14px';
+        el.style.opacity = '0.3';
+        el.style.animationDelay = (i * 0.3) + 's';
+        worldEl.appendChild(el);
+        el.addEventListener('animationend', () => el.remove());
+      }
+      store.rains++;
+      saveStore(store);
+    }
+
+    function createLeaves() {
+      for (let i = 0; i < 4; i++) {
+        const el = document.createElement('div');
+        el.className = 'sprite leaf';
+        el.textContent = '🍂';
+        el.style.top = (10 + Math.random() * 35) + '%';
+        el.style.fontSize = '16px';
+        el.style.opacity = '0.3';
+        el.style.animationDelay = (i * 0.5) + 's';
+        worldEl.appendChild(el);
+        el.addEventListener('animationend', () => el.remove());
+      }
+    }
+
+    const WORLD_EVENTS = [createPlane, createDuck, createRain, createLeaves];
+
+    function scheduleWorld() {
+      const delay = WORLD_MIN + Math.random() * (WORLD_MAX - WORLD_MIN);
+      worldTimer = setTimeout(() => {
+        if (!btnDisabled) {
+          WORLD_EVENTS[Math.floor(Math.random() * WORLD_EVENTS.length)]();
+        }
+        scheduleWorld();
+      }, delay);
+    }
+
+    function stopWorld() {
+      clearTimeout(worldTimer);
+    }
+
+    function resumeWorld() {
+      scheduleWorld();
+    }
+
+    // === speak ===
+    const lineEl = document.getElementById('line');
+    let speakCooldown = false;
+    let btnDisabled = false;
+
+    function showLine(text) {
+      lineEl.textContent = text;
+      lineEl.style.opacity = '1';
+    }
+
+    function hideLine(cb) {
+      lineEl.style.opacity = '0';
+      setTimeout(() => { lineEl.textContent = ''; if (cb) cb(); }, 600);
+    }
+
+    function speak(text) {
+      disableButton();
+      showLine(text);
+      setTimeout(() => {
+        hideLine();
+        enableButton();
+      }, SPEAK_DURATION);
+    }
+
+    function disableButton() {
+      btnDisabled = true;
+      wrap.classList.add('disabled');
+    }
+
+    function enableButton() {
+      btnDisabled = false;
+      wrap.classList.remove('disabled');
+    }
+
+    function runCountdown() {
+      disableButton();
+      const fake = Math.random() > 0.005;
+
+      if (fake) {
+        const variant = Math.floor(Math.random() * 4);
+
+        if (variant === 0) {
+          let n = 3;
+          showLine(String(n));
+          const iv = setInterval(() => {
+            n--;
+            if (n > 0) {
+              showLine(String(n));
+            } else {
+              clearInterval(iv);
+              showLine('什么也没发生。');
+              setTimeout(() => { hideLine(); enableButton(); }, 1500);
+            }
+          }, 1000);
+
+        } else if (variant === 1) {
+          showLine('正在准备……');
+          setTimeout(() => {
+            showLine('……');
+            setTimeout(() => {
+              showLine('骗你的。');
+              setTimeout(() => { hideLine(); enableButton(); }, 1200);
+            }, 1500);
+          }, 2000);
+
+        } else if (variant === 2) {
+          showLine('3');
+          setTimeout(() => showLine('2'), 800);
+          setTimeout(() => showLine('1'), 1600);
+          setTimeout(() => {
+            showLine('0');
+            wrap.style.transform = 'translate(-50%, -50%) scale(1.05)';
+            wrap.style.transition = 'transform 0.1s';
+            setTimeout(() => {
+              wrap.style.transform = 'translate(-50%, -50%)';
+              wrap.style.transition = '';
+              showLine('什么也没发生！');
+              setTimeout(() => { hideLine(); enableButton(); }, 1500);
+            }, 300);
+          }, 2200);
+
+        } else {
+          showLine('正在准备……');
+          setTimeout(() => {
+            wrap.classList.add('shake');
+            document.body.style.transition = 'background 1.5s';
+            document.body.style.background = '#1a1d26';
+            showLine('……');
+            setTimeout(() => {
+              wrap.classList.remove('shake');
+              document.body.style.background = '#31333E';
+              showLine('什么也没发生。');
+              setTimeout(() => { hideLine(); enableButton(); }, 1500);
+            }, 2000);
+          }, 2000);
+        }
+
+      } else {
+        showLine('3');
+        setTimeout(() => showLine('2'), 1000);
+        setTimeout(() => showLine('1'), 2000);
+        setTimeout(() => {
+          showLine('0');
+          document.body.style.transition = 'background 0.5s';
+          document.body.style.background = '#000';
+          lineEl.style.color = 'transparent';
+          setTimeout(() => {
+            lineEl.style.color = '#e5e7eb';
+            showLine('可惜。');
+            document.body.style.background = '#31333E';
+            setTimeout(() => {
+              hideLine();
+              enableButton();
+            }, 2500);
+          }, 3000);
+        }, 3000);
+      }
+    }
+
+    function trySpeak() {
+      if (speakCooldown) return;
+      speakCooldown = true;
+      const type = window.DEBUG_FORCE || layer();
+      const line = pickLine(type);
+      if (line && line.countdown) {
+        runCountdown();
+      } else if (line && line.gentle) {
+        runGentle(line.text);
+      } else {
+        speak(typeof line === 'string' ? line : line.text);
+      }
+      setTimeout(() => { speakCooldown = false; }, MIN_GAP);
+    }
+
+    // === DOM ===
+    const wrap = document.getElementById('btn-wrap');
+    const up = document.getElementById('btn-up');
+    const down = document.getElementById('btn-down');
+    const hint = document.getElementById('hint');
+    const sfxText = document.getElementById('sfx-text');
+    const statsEl = document.getElementById('stats');
+    const feedbackEl = document.getElementById('feedback');
+    const toastEl = document.getElementById('toast');
+    let statsTimer = null;
+    let feedbackTimer = null;
+    let toastTimer = null;
+
+    function showToast(text) {
+      toastEl.textContent = text;
+      toastEl.style.opacity = '1';
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toastEl.style.opacity = '0'; }, 3000);
+    }
+
+    function showFeedback() {
+      feedbackEl.textContent = '什么也没发生';
+      feedbackEl.style.opacity = '1';
+      clearTimeout(feedbackTimer);
+      feedbackTimer = setTimeout(() => { feedbackEl.style.opacity = '0'; }, 1200);
+    }
+
+    function updateStats() {
+      const totalSec = Math.floor(store.totalPressMs / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      let text = `你已按了 ${store.clicks} 下，耗时 ${m} 分 ${s} 秒`;
+      if (selfClicks.count > 0) {
+        text += `，按钮自己按了 ${selfClicks.count} 下`;
+      }
+      statsEl.textContent = text;
+      statsEl.style.opacity = '1';
+      clearTimeout(statsTimer);
+      statsTimer = setTimeout(() => { statsEl.style.opacity = '0'; }, 3000);
+    }
+
+    // === 按钮状态 ===
+    let pressed = false;
+    let pressStart = 0;
+
+    function showUp() { up.style.display = 'block'; down.style.display = 'none'; }
+    function showDown() { up.style.display = 'none'; down.style.display = 'block'; }
+
+    wrap.addEventListener('mousedown', (e) => {
+      if (pressed || btnDisabled || dodgeActive) return;
+      if (Math.random() < DODGE_CHANCE && store.clicks > 10) {
+        runDodge();
+        return;
+      }
+      pressed = true;
+      pressStart = Date.now();
+      showDown();
+      playClick();
+      resetIdle();
+      sfxText.textContent = '咔哒';
+      const rx = 130 + Math.random() * 80;
+      const ry = -180 + Math.random() * 60;
+      sfxText.style.left = `calc(50% + ${rx}px)`;
+      sfxText.style.top = `calc(50% + ${ry}px)`;
+      sfxText.style.opacity = '1';
+    });
+
+    function release() {
+      if (!pressed) return;
+      const duration = Date.now() - pressStart;
+      store.clicks++;
+      store.totalPressMs += duration;
+      saveStore(store);
+      pressed = false;
+      showUp();
+      showFeedback();
+      updateStats();
+      updateLastActive();
+      trySpeak();
+      resetBreath();
+      setTimeout(() => { sfxText.style.opacity = '0'; }, 300);
+    }
+
+    wrap.addEventListener('mouseup', release);
+    wrap.addEventListener('mouseleave', release);
+    wrap.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (pressed || btnDisabled || dodgeActive) return;
+      if (Math.random() < DODGE_CHANCE && store.clicks > 10) {
+        runDodge();
+        return;
+      }
+      pressed = true;
+      pressStart = Date.now();
+      showDown();
+      playClick();
+      resetIdle();
+      sfxText.textContent = '咔哒';
+      const rx = 130 + Math.random() * 80;
+      const ry = -180 + Math.random() * 60;
+      sfxText.style.left = `calc(50% + ${rx}px)`;
+      sfxText.style.top = `calc(50% + ${ry}px)`;
+      sfxText.style.opacity = '1';
+    });
+    wrap.addEventListener('touchend', release);
+    wrap.addEventListener('touchcancel', release);
+
+    // === 角落提示 ===
+    setTimeout(() => hint.classList.add('show'), 1500);
+
+    // === 启动 ===
+    resetBreath();
+    checkWelcomeBack();
+    scheduleWorld();
+  </script>
+</body>
+</html>
