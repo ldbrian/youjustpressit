@@ -96,9 +96,9 @@
   #sfx-text {
     position: absolute;
     color: #a0aec0;
-    font-size: 10px;
+    font-size: 16px;
     font-family: monospace;
-    letter-spacing: 2px;
+    letter-spacing: 3px;
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s;
@@ -116,13 +116,13 @@
     color: #e5e7eb;
     font-size: 36px;
     font-family: monospace;
-    letter-spacing: 6px;
+    letter-spacing: 5px;
     text-align: center;
     pointer-events: none;
     user-select: none;
     opacity: 0;
     transition: opacity 0.6s;
-    max-width: 80%;
+    max-width: 85%;
     line-height: 1.6;
     text-shadow: 0 0 8px rgba(229,231,235,0.3);
   }
@@ -141,7 +141,6 @@
     user-select: none;
     opacity: 0;
     transition: opacity 1.5s;
-    white-space: nowrap;
   }
 
   #feedback {
@@ -157,7 +156,6 @@
     user-select: none;
     opacity: 0;
     transition: opacity 0.3s;
-    white-space: nowrap;
   }
 
   #toast {
@@ -173,7 +171,6 @@
     user-select: none;
     opacity: 0;
     transition: opacity 1s;
-    white-space: nowrap;
   }
 
   #world {
@@ -199,17 +196,13 @@
     animation: walkAcross 20s linear forwards;
   }
 
-  .rain {
-    animation: fallDown 5s linear forwards;
-  }
-
-  .leaf {
-    animation: blowAcross 10s linear forwards;
+  .cloud {
+    animation: driftAcross linear forwards;
   }
 
   @keyframes flyAcross {
-    from { left: -80px; }
-    to { left: calc(100% + 80px); }
+    from { left: -130px; }
+    to { left: calc(100% + 130px); }
   }
 
   @keyframes walkAcross {
@@ -217,14 +210,9 @@
     to { right: calc(100% + 100px); left: auto; }
   }
 
-  @keyframes fallDown {
-    from { top: -8%; opacity: 1; }
-    to { top: 108%; opacity: 0.3; }
-  }
-
-  @keyframes blowAcross {
-    from { left: -40px; transform: rotate(0deg); }
-    to { left: calc(100% + 40px); transform: rotate(720deg); }
+  @keyframes driftAcross {
+    from { left: -150px; }
+    to { left: calc(100% + 150px); }
   }
 
   @keyframes shake {
@@ -653,9 +641,9 @@
       img.src = 'assets/plane.png';
       img.style.display = 'block';
       img.style.imageRendering = 'pixelated';
-      img.style.width = '115px';
-      img.style.height = '77px';
-      img.style.opacity = '0.4';
+      img.style.width = '150px';
+      img.style.height = '100px';
+      img.style.opacity = '0.5';
       el.appendChild(img);
       worldEl.appendChild(el);
       el.addEventListener('animationend', () => el.remove());
@@ -670,9 +658,9 @@
       img.src = 'assets/duck.png';
       img.style.display = 'block';
       img.style.imageRendering = 'pixelated';
-      img.style.width = '81px';
-      img.style.height = '71px';
-      img.style.opacity = '0.6';
+      img.style.width = '110px';
+      img.style.height = '97px';
+      img.style.opacity = '0.7';
       el.appendChild(img);
       worldEl.appendChild(el);
 
@@ -703,50 +691,32 @@
       });
     }
 
-    function createRain() {
-      for (let i = 0; i < 8; i++) {
-        const el = document.createElement('div');
-        el.className = 'sprite rain';
-        // 纯 CSS 像素雨滴：细线条
-        el.style.cssText = `
-          width: 1px;
-          height: 16px;
-          background: #556b7a;
-          opacity: 0.4;
-          left: ${10 + Math.random() * 80}%;
-          top: -8%;
-          animation-delay: ${i * 0.3}s;
-        `;
-        worldEl.appendChild(el);
-        el.addEventListener('animationend', () => el.remove());
-      }
-      store.rains++;
-      saveStore(store);
+    function createRain() {} // removed — too small to see
+    function createLeaves() {} // removed — too small to see
+
+    function createCloud() {
+      const el = document.createElement('div');
+      el.className = 'sprite cloud';
+      const top = 3 + Math.random() * 20;
+      const dur = 25 + Math.random() * 20;
+      const opacity = 0.12 + Math.random() * 0.15;
+      const size = 60 + Math.random() * 80;
+      el.style.cssText = `
+        top: ${top}%;
+        animation-duration: ${dur}s;
+      `;
+      // CSS pixel cloud: 3 overlapping circles
+      el.innerHTML = `
+        <svg width="${size}" height="${size * 0.5}" viewBox="0 0 120 60" style="opacity:${opacity}">
+          <ellipse cx="40" cy="40" rx="30" ry="18" fill="#8899aa"/>
+          <ellipse cx="65" cy="35" rx="25" ry="20" fill="#8899aa"/>
+          <ellipse cx="85" cy="40" rx="20" ry="15" fill="#8899aa"/>
+        </svg>`;
+      worldEl.appendChild(el);
+      el.addEventListener('animationend', () => el.remove());
     }
 
-    function createLeaves() {
-      for (let i = 0; i < 4; i++) {
-        const el = document.createElement('div');
-        el.className = 'sprite leaf';
-        // 纯 CSS 像素落叶：小矩形旋转飘动
-        const size = 6 + Math.random() * 4;
-        const hue = 30 + Math.random() * 20; // 橙黄色系
-        el.style.cssText = `
-          width: ${size}px;
-          height: ${size * 0.7}px;
-          background: hsl(${hue}, 60%, 45%);
-          opacity: 0.5;
-          left: -${size}px;
-          top: ${10 + Math.random() * 35}%;
-          border-radius: 1px;
-          animation-delay: ${i * 0.5}s;
-        `;
-        worldEl.appendChild(el);
-        el.addEventListener('animationend', () => el.remove());
-      }
-    }
-
-    const WORLD_EVENTS = [createPlane, createDuck, createRain, createLeaves];
+    const WORLD_EVENTS = [createPlane, createDuck, createCloud, createCloud];
 
     function scheduleWorld() {
       const delay = WORLD_MIN + Math.random() * (WORLD_MAX - WORLD_MIN);
